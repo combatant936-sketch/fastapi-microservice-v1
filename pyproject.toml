@@ -7,16 +7,16 @@ authors = [
     { name = "Muhammad Waqas Khan", email = "combatant936@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
-
-[project.scripts]
-fast-store = "fast_store:main"
-
-[build-system]
-requires = ["uv_build>=0.12.21,<0.13.0"]
-build-backend = "uv_build"
+dependencies = [
+    "aio-pika>=10.1.0",
+    "fastapi[standard]>=0.142.2",
+    "pyjwt>=2.15.1",
+]
 
 [tool.uv.workspace]
 members = [
     "services/user-service",
+    "services/product-service",
+    "services/order-service",
+    "services/inventory-service",
 ]

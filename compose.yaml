@@ -1,14 +1,50 @@
 services:
-  user-services:
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  traefik:
+    image: traefik:latest
+    command:
+      - "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "//var/run/docker.sock:/var/run/docker.sock:ro"
+  user-service:
     build:
       context: .
       dockerfile: "services/user-service/src/user_service/DockerFile"
-    ports:
-      - "8001:8000"
+    # ports:
+    #   - "8001:8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.user-service.entrypoints=web"
+      - "traefik.http.routers.user-service.rule=PathPrefix(`/users`) || PathPrefix(`/docs`) || PathPrefix(`/openapi.json`)"
+      - "traefik.http.services.user-service.loadbalancer.server.port=8000"
     environment:
       - DATABASE_URL=postgresql+psycopg://postgres:password@db:5432/user_db
     depends_on:
       - db
+      - product-service
   db:
     image: postgres:16-alpine
     environment:
@@ -19,5 +55,31 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  product-service:
+    build:
+      context: .
+      dockerfile: "services/product-service/src/product_service/DockerFile"
+
+  order-service:
+    build:
+      context: .
+      dockerfile: "services/order-service/src/order_service/DockerFile"
+    ports:
+      - "8002:8000" # Exposing directly for testing today
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: "services/inventory-service/src/inventory_service/DockerFile"
+    ports:
+      - "8003:8000" # Exposing directly for testing today
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
 volumes:
   postgres_data:

@@ -1,0 +1,13 @@
+[project]
+name = "product-service"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Muhammad Waqas Khan", email = "combatant936@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "grpcio>=1.84.0",
+    "grpcio-tools>=1.84.0",
+]
