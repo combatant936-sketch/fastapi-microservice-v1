@@ -27,6 +27,7 @@ dev = [
     "pytest>=9.1.1",
 ]
 [tool.pytest.ini_options]
-pythonpath = ["."]
+# src = user_service package; ../.. = repo root so `shared` imports match Docker PYTHONPATH
+pythonpath = ["src", "../.."]
 
 
