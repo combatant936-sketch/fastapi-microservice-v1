@@ -32,7 +32,7 @@ jobs:
       - name: Build Docker Image
         run: |
           # We tag the image using the unique commit hash
-          docker build -t my-company/user-service:${{ github.sha }} -f services/user-service/src/user_service/Dockerfile .
+          docker build -t my-company/user-service:${{ github.sha }} -f services/user-service/src/user_service/DockerFile .
          
           # In a real production environment, you would add a step here to:
           # docker push my-company/user-service:${{ github.sha }}
