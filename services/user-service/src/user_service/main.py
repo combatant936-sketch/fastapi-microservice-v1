@@ -1,6 +1,6 @@
 from sqlmodel import select
-from sqlmodel import Session,SQLModel
-from fastapi import FastAPI,Depends,HTTPException
+from sqlmodel import Session,SQLModel,text
+from fastapi import FastAPI,Depends,HTTPException,Response,status
 from .db import engine,get_session
 from contextlib import asynccontextmanager 
 from .models import User,UserPublic
@@ -10,6 +10,12 @@ from . import product_pb2_grpc
 from fastapi.middleware.cors import CORSMiddleware
 from .auth import verify_password,create_access_token,hash_password
 from shared.jwt_utils import verify_token
+from opentelemetry import trace
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
@@ -17,7 +23,17 @@ async def lifespan(app:FastAPI):
     yield
 
 app=FastAPI(lifespan=lifespan)
+# 1. Name the service so we can identify it in the background
+resource = Resource.create({"service.name": "user-service"})
+provider = TracerProvider(resource=resource)
 
+# 2. Tell it where to send the traces (our Jaeger container)
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://jaeger:4317", insecure=True))
+provider.add_span_processor(processor)
+trace.set_tracer_provider(provider)
+
+# 3. Auto-instrument the FastAPI app
+FastAPIInstrumentor.instrument_app(app)
 @app.get("/health")
 def health():
     return {"status":"ok","service":"user-service"}
@@ -79,4 +95,23 @@ def login(user_data: User, session: Session = Depends(get_session)):
    
     token = create_access_token(data={"sub": str(db_user.id), "email": db_user.email})
     return {"access_token": token, "token_type": "bearer"}
+
+
+
+@app.get("/health/liveness", tags=["Health"])
+def liveness_probe():
+    """Checks if the FastAPI server is running."""
+    return {"status": "alive"}
+
+@app.get("/health/readiness", tags=["Health"])
+def readiness_probe(response: Response, session: Session = Depends(get_session)):
+    """Checks if the service is ready to handle traffic (e.g., DB connected)."""
+    try:
+        # Execute a simple ping to the database
+        session.exec(text("SELECT 1"))
+        return {"status": "ready"}
+    except Exception as e:
+        # If the DB is unreachable, return a 503 error
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "unhealthy", "detail": str(e)}
     
